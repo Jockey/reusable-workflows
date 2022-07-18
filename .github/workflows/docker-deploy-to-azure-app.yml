@@ -1,0 +1,40 @@
+name: Deploy DockerImage to Azure App Service
+
+on:
+  workflow_call:
+    inputs:
+      azure_app_name:
+        description: "The Azure App Service App Name"
+        required: true
+        type: string
+      azure_publish_profile:
+        description: "The Azure Publish profile (.xml) used to publish the App"
+        required: true
+        type: string
+      #
+      docker_registry:
+        description: "The Docker Registry to use"
+        required: true
+        type: string
+      docker_container_name:
+        description: "The Docker Container Name to use."
+        required: true
+        type: string
+      docker_container_tag:
+        description: "The Docker Container Tag to use."
+        required: true
+        type: string
+
+jobs:
+  build_and_publish:
+    name: Deploy to App Service
+    runs-on: ubuntu-latest
+    env:
+      CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
+    steps:
+      - name: "Deploy To Azure"
+        uses: azure/webapps-deploy@v2
+        with:
+            app-name: ${{ inputs.azure_app_name }}
+            publish-profile: ${{ inputs.azure_publish_profile }}
+            images: "${{ env.CONTAINER_FQN }}"
