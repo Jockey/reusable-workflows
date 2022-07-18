@@ -20,6 +20,10 @@ on:
         description: "The Docker Container Tag to use."
         required: true
         type: string
+    secrets:
+      PUBLISH_PROFILE:
+        description: The App Service Publish Profile to use for deployment
+        required: true
 
 jobs:
   build_and_publish:
@@ -31,6 +35,6 @@ jobs:
       - name: "Deploy To Azure"
         uses: azure/webapps-deploy@v2
         with:
-            app-name: ${{ inputs.azure_app_name }}
-            publish-profile: ${{ secrets.PUBLISH_PROFILE }}
-            images: "${{ env.CONTAINER_FQN }}"
+          app-name: ${{ inputs.azure_app_name }}
+          publish-profile: ${{ secrets.PUBLISH_PROFILE }}
+          images: "${{ env.CONTAINER_FQN }}"
