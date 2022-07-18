@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       docker_registry:
-        description: "The Docker Registry Tag to use"
+        description: "The Docker Registry to use"
         required: true
         type: string
       docker_container_name:
