@@ -7,10 +7,6 @@ on:
         description: "The Azure App Service App Name"
         required: true
         type: string
-      azure_publish_profile:
-        description: "The Azure Publish profile (.xml) used to publish the App"
-        required: true
-        type: string
       #
       docker_registry:
         description: "The Docker Registry to use"
@@ -36,5 +32,5 @@ jobs:
         uses: azure/webapps-deploy@v2
         with:
             app-name: ${{ inputs.azure_app_name }}
-            publish-profile: ${{ inputs.azure_publish_profile }}
+            publish-profile: ${{ secrets.PUBLISH_PROFILE }}
             images: "${{ env.CONTAINER_FQN }}"
