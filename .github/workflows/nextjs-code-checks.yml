@@ -38,7 +38,7 @@ jobs:
 
       # Install dependencies, bypass `npm prepare`
       - name: "`yarn install`"
-        run: yarn install --ignore-scripts
+        run: yarn install --frozen-lockfile --ignore-scripts
 
       - name: Post-Install Script
         run: ${{ inputs.post_install_script }}
