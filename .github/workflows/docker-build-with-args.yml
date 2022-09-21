@@ -58,7 +58,7 @@ jobs:
           echo "DEPLOY_ENV=$($PWD/map-extract.sh -k '${{ github.base_ref }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
 
       - name: Print Deploy Env
-        run: echo "DEPLOY_ENV set to '${{ env. DEPLOY_ENV }}'"
+        run: echo "DEPLOY_ENV set to '${{ env.DEPLOY_ENV }}'"
 
       - name: Login to Docker Registry
         uses: azure/docker-login@v1
