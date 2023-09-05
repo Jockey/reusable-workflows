@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
-      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/buildcache-${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
+      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v4
