@@ -62,8 +62,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-        with:
-          driver: docker-container
 
       - name: Login to Docker Registry
         uses: azure/docker-login@v1
@@ -78,8 +76,8 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=ci-build-${{ github.base_ref }}
+          cache-to: type=registry,mode=max,ref=ci-build-${{ github.base_ref }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
