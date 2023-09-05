@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
+      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/buildcache-${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v4
@@ -76,8 +77,8 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          cache-from: type=registry,ref=ci-build-${{ github.base_ref }}
-          cache-to: type=registry,mode=max,ref=ci-build-${{ github.base_ref }}
+          cache-from: type=registry,ref=${{ env.CACHE_IMAGE_REF }}
+          cache-to: type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
