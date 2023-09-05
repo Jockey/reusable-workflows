@@ -48,7 +48,7 @@ jobs:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
     steps:
       # This checks out the repository so your workflow operates from root of repository
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Determine Deploy Env
         # We have to download the script, despite it being in this repo.
