@@ -78,7 +78,7 @@ jobs:
           file: ${{ inputs.docker_file_name }}
           push: true
           cache-from: type=registry,ref=${{ env.CACHE_IMAGE_REF }}
-          cache-to: type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
+          cache-to: type=registry,mode=min,ref=${{ env.CACHE_IMAGE_REF }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
