@@ -76,8 +76,8 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          cache-from: type=registry,ref=user/app:latest
-          cache-to: type=registry,ref=user/app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
