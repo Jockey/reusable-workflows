@@ -43,7 +43,7 @@ env:
 jobs:
   build_and_publish:
     name: Docker Build & Publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-large-16
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
       CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache
