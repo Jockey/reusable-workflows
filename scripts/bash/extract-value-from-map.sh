@@ -34,4 +34,4 @@ if [ "$verbose" != "" ]; then
     echo "$map" | jq -r "."
 fi
 
-echo "$map" | jq -r '."$key"'
+echo "$map" | jq -r ".\"$key\""
