@@ -1,0 +1,31 @@
+name: Generate Timestamp Build ID
+
+# This workflow products an `output` of `build_id`
+# Use it like so:
+#
+# jobs:
+#    make_build_id:
+#     name: Make Build ID
+#     uses: Jockey/reusable-workflows/.github/workflows/nextjs-code-checks.yml@master
+#
+#   use_build_id:
+#     needs: [make_build_id]
+#     steps:
+#       - run: echo "${{ needs.make_build_id.outputs.build_id }}"
+#
+
+on:
+  workflow_call:
+
+jobs:
+  build_id:
+    name: Generate Build ID
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.make_id.outputs.build_id }}
+    steps:
+      - name: Generate Build Strings
+        id: make_id
+        # Generates a timestamp of "YYYY-MM-DD-hhmm" for the build ID
+        run: |
+          echo "build_id=$(date +'v%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
