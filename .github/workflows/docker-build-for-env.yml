@@ -27,6 +27,13 @@ on:
         description: "The Build ID that should be passed to Docker during Build Phase."
         required: true
         type: string
+    outputs:
+      tagless_image_url: 
+        description: "The \"tagless\" Docker image URL. So would be \"{docker_registry}{docker_image_name}:{deploy_environment}\""
+        value: ${{ jobs.build_and_publish.outputs.tagless_image_url }}
+      tagged_image_url: 
+        description: "The \"full\" Docker image URL. So would be \"{docker_registry}{docker_image_name}:{deploy_environment}-{build_id}\""
+        value: ${{ jobs.build_and_publish.outputs.tagless_image_url }}
 
 env:
   DOCKER_BUILDKIT: 1
@@ -35,6 +42,9 @@ jobs:
   build_and_publish:
     name: Docker Build & Publish
     runs-on: ubuntu-latest
+    outputs:
+      tagless_image_url: ${{ steps.build_strs.outputs.tagless_img_url }}
+      tagged_image_url: ${{ steps.build_strs.outputs.tagged_img_name }}
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v4
@@ -44,10 +54,10 @@ jobs:
         run: |
           lowercase_env=$(echo "${{ inputs.deploy_environment }}" | tr '[:upper:]' '[:lower:]')
           echo "lowercase_env=${lowercase_env}" >> $GITHUB_OUTPUT
-          tagless_image_url=$(echo "${{ inputs.docker_registry }}${{ inputs.docker_image_name }}:${lowercase_env}")
-          echo "tagless_img_name=$(echo ${tagless_image_url})" >> $GITHUB_OUTPUT
-          echo "cache_image_ref=$(echo ${tagless_image_url}-buildcache)" >> $GITHUB_OUTPUT
-          echo "tagged_img_name=$(echo ${tagless_image_url}-${{ inputs.build_id }})" >> $GITHUB_OUTPUT
+          tagless_image_base=$(echo "${{ inputs.docker_registry }}${{ inputs.docker_image_name }}:${lowercase_env}")
+          echo "tagless_img_url=$(echo ${tagless_image_base})" >> $GITHUB_OUTPUT
+          echo "cache_image_ref=$(echo ${tagless_image_base}-buildcache)" >> $GITHUB_OUTPUT
+          echo "tagged_img_name=$(echo ${tagless_image_base}-${{ inputs.build_id }})" >> $GITHUB_OUTPUT
 
       - name: Print Deploy ifno
         run: |
