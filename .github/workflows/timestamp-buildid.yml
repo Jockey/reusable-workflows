@@ -1,6 +1,9 @@
 name: Generate Timestamp Build ID
 
-# This workflow products an `output` of `build_id`
+# This workflow products an `output` of `build_id`.
+# The build_id format is "vYYYY-MM-DD-hhmm"
+#
+#
 # Use it like so:
 #
 # jobs:
@@ -26,6 +29,5 @@ jobs:
     steps:
       - name: Generate Build Strings
         id: make_id
-        # Generates a timestamp of "YYYY-MM-DD-hhmm" for the build ID
         run: |
           echo "build_id=$(date +'v%Y-%m-%d-%H%M')" >> $GITHUB_OUTPUT
