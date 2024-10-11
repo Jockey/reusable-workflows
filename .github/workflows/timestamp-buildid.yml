@@ -23,7 +23,6 @@ on:
         description: "The Build ID, format of \"vYYYY-MM-DD-hhmmss\""
         value: ${{ jobs.build_id.outputs.build_id }}
 
-
 jobs:
   build_id:
     name: Generate Build ID

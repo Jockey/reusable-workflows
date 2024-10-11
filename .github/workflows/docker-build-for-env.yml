@@ -34,6 +34,11 @@ on:
       tagged_image_url: 
         description: "The \"full\" Docker image URL. So would be \"{docker_registry}{docker_image_name}:{deploy_environment}-{build_id}\""
         value: ${{ jobs.build_and_publish.outputs.tagless_image_url }}
+    secrets:
+      DOCKER_REGISTRY_USERNAME:
+        required: true
+      DOCKER_REGISTRY_PASSWORD:
+        required: true
 
 env:
   DOCKER_BUILDKIT: 1
