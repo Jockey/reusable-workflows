@@ -19,8 +19,8 @@ name: Generate Timestamp Build ID
 on:
   workflow_call:
     outputs:
-      build_id: 
-        description: "The Build ID, format of \"vYYYY-MM-DD-hhmmss\""
+      build_id:
+        description: 'The Build ID, format of "vYYYY-MM-DD-hhmmss"'
         value: ${{ jobs.build_id.outputs.build_id }}
 
 permissions:
@@ -38,13 +38,11 @@ jobs:
         run: |
           echo "build_id=$(date +'v%Y-%m-%d-%H%M%S')" >> $GITHUB_OUTPUT
 
-  attach_to_pr:
-    name: Attach Build ID to PR
-    if: github.event_name == 'pull_request'
-    needs: [build_id]
-    uses: jupier/powerful-pr-comment@v0.0.5
-    with:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      commentId: buildid-cmmt
-      body: |
-        Build ID for this Pull Request: ${{ needs.build_id.outputs.build_id }}
+      - name: Update PR
+        if: github.event_name == 'pull_request'
+        uses: jupier/powerful-pr-comment@v0.0.5
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          commentId: buildid-cmmt
+          body: |
+            Build ID for this Pull Request: ${{ steps.make_id.outputs.build_id }}
