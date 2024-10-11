@@ -1,4 +1,4 @@
-name: Code Checks (Next.js)
+name: Code Checks (Node.js)
 
 on:
   workflow_call:
