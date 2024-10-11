@@ -43,6 +43,6 @@ jobs:
         uses: jupier/powerful-pr-comment@v0.0.5
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          commentId: buildid-cmmt
+          sticky: true
           body: |
             Build ID for this Pull Request: ${{ steps.make_id.outputs.build_id }}
