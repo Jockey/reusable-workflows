@@ -88,6 +88,7 @@ jobs:
           cache-from: type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref }}
           cache-to: type=registry,mode=min,ref=${{ steps.build_strs.outputs.cache_image_ref }}
           tags: ${{ steps.build_strs.outputs.tagged_img_name }}
+          # DEPLOY_ENV may be required by the build script
           build-args: |
-            DEPLOY_ENV=${{ inputs.deploy_environment }} # DEPLOY_ENV may be required by the build script
+            DEPLOY_ENV=${{ inputs.deploy_environment }}
             BUILD_ID=${{ inputs.build_id }}
