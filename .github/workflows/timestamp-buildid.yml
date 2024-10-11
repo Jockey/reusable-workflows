@@ -34,3 +34,14 @@ jobs:
         id: make_id
         run: |
           echo "build_id=$(date +'v%Y-%m-%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+  attach_to_pr:
+    name: Attach Build ID to PR
+    if: github.event_name == 'pull_request'
+    needs: [build_id]
+    uses: jupier/powerful-pr-comment@v0.0.5
+    with:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      commentId: buildid-cmmt
+      body: |
+        Build ID for this Pull Request: ${{ needs.build_id.outputs.build_id }}
