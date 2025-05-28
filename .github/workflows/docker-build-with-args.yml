@@ -58,8 +58,14 @@ jobs:
           chmod +x $PWD/map-extract.sh
           echo "DEPLOY_ENV=$($PWD/map-extract.sh -k '${{ github.base_ref }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
 
-      - name: Print Deploy Env
-        run: echo "DEPLOY_ENV set to '${{ env.DEPLOY_ENV }}'"
+      - name: Check Deploy Env
+        run: |
+          if [ -z "${{ env.DEPLOY_ENV }}" ]; then
+            echo "Error: DEPLOY_ENV is empty. Exiting."
+            exit 1
+          else
+            echo "DEPLOY_ENV is: '${{ env.DEPLOY_ENV }}'"
+          fi
 
       - name: Login to Docker Registry
         uses: docker/login-action@v2
