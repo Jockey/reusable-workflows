@@ -1,0 +1,123 @@
+name: Deploy Image to App Service Slot
+
+on:
+    workflow_call:
+        inputs:
+            app-resource-group:
+                description: "Azure Resource Group for the given `app-name`"
+                required: true
+                type: string
+            app-name:
+                description: "The base App Service name"
+                required: true
+                type: string
+            image-name:
+                description: "Full Docker image identifier"
+                required: true
+                type: string
+            slot-name:
+                description: "Name of the App Service Slot to use"
+                required: true
+                type: string
+            custom-url-suffix:
+                description: "Appendd after `slot-name` to add custom DNS binding. `-fe.example.com` bind `{slot-name}-fe.example.com`"
+                required: false
+                type: string
+        outputs:
+            deployment_url: 
+                description: "URL of the most recent deployment"
+                value: ${{ jobs.deploy.outputs.deployment_url }}
+        secrets:
+            AZURE_SERVICE_PRINCIPAL:
+                required: true
+
+jobs:
+    deploy:
+        if: github.event.action != 'closed'
+        runs-on: ubuntu-latest
+        outputs:
+            deployment_url: ${{ steps.set-url.outputs.deployment_url }}
+        steps:
+            - name: Log in to Azure
+              uses: azure/login@v2
+              with:
+                  creds: ${{ secrets.AZURE_SERVICE_PRINCIPAL }}
+
+            # Create slot if it doesn't exist; syncs configuration from parent app
+            - name: Create Azure App Service Slot
+              uses: azure/CLI@v2
+              with:
+                  inlineScript: |
+                      az webapp slot create \
+                        --name ${{ inputs.app-name }} \
+                        --resource-group ${{ inputs.app-resource-group }} \
+                        --slot ${{ inputs.slot-name }} \
+                        --configuration-source ${{ inputs.app-name }}
+
+            - name: Deploy Container to Slot
+              uses: azure/webapps-deploy@v3
+              with:
+                  app-name: ${{ inputs.app-name }}
+                  slot-name: ${{ inputs.slot-name }}
+                  images: ${{ inputs.image-name }}
+
+            - name: Bind Custom Domain and Enable SSL
+              uses: azure/CLI@v2
+              if: ${{ inputs.custom-url-suffix != '' }}
+              with:
+                inlineScript: |
+                    HOSTNAME="${{ inputs.slot-name }}${{ inputs.custom-url-suffix }}"
+                    echo "Configuring custom domain: $HOSTNAME"
+                    
+                    # Add the hostname binding to the slot
+                    az webapp config hostname add \
+                        --webapp-name ${{ inputs.app-name }} \
+                        --resource-group ${{ inputs.app-resource-group }} \
+                        --slot ${{ inputs.slot-name }} \
+                        --hostname "$HOSTNAME"
+                    
+                    # Create a free Managed SSL Certificate for this specific slot hostname
+                    az webapp config ssl create \
+                        --name ${{ inputs.app-name }} \
+                        --resource-group ${{ inputs.app-resource-group }} \
+                        --slot ${{ inputs.slot-name }} \
+                        --hostname "$HOSTNAME"
+                    
+                    # Bind the generated certificate to turn on HTTPS (SNI-based)
+                    THUMBPRINT=$(az webapp config ssl list --resource-group ${{ inputs.app-resource-group }} --query "[?hostname=='$HOSTNAME'].thumbprint" -o tsv)
+
+                    az webapp config ssl bind \
+                        --name ${{ inputs.app-name }} \
+                        --resource-group ${{ inputs.app-resource-group }} \
+                        --slot ${{ inputs.slot-name }} \
+                        --certificate-thumbprint "$THUMBPRINT" \
+                        --ssl-type SNI
+
+            # Set output URL based on whether a custom domain or default azure domain was used
+            - name: Determine Deployment URL
+              id: set-url
+              run: |
+                if [ -n "${{ inputs.custom-url-suffix }}" ]; then
+                    echo "deployment_url=https://${{ inputs.slot-name }}${{ inputs.custom-url-suffix }}" >> $GITHUB_OUTPUT
+                else
+                    echo "deployment_url=https://${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net" >> $GITHUB_OUTPUT
+                fi
+
+    cleanup:
+        if: github.event.action == 'closed'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Log in to Azure
+              uses: azure/login@v2
+              with:
+                  creds: ${{ secrets.AZURE_SERVICE_PRINCIPAL }}
+
+            - name: Delete Azure App Service Slot
+              uses: azure/CLI@v2
+              with:
+                  inlineScript: |
+                      az webapp slot delete \
+                        --name ${{ inputs.app-name }} \
+                        --resource-group ${{ inputs.app-resource-group }} \
+                        --slot ${{ inputs.slot-name }} \
+                        --yes
