@@ -36,6 +36,11 @@ on:
         description: "The Build ID that should be passed to Docker during Build Phase."
         required: true
         type: string
+    #
+    outputs:
+      docker_image_name:
+        description: "Fully qualified Docker Image name. Like '{registry}/{container-name}:{tag}' "
+        value: ${{ jobs.build_and_publish.outputs.image_fqn }}
 
 env:
   DOCKER_BUILDKIT: 1
@@ -89,3 +94,8 @@ jobs:
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
             BUILD_ID=${{ inputs.build_id }}
+
+      # Set the output variable from the full Docker image name
+      - name: Export Full Image Name
+        id: set-output
+        run: echo "image_fqn=${{ env.CONTAINER_FQN }}" >> $GITHUB_OUTPUT
