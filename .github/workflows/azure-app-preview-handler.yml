@@ -23,6 +23,11 @@ on:
                 description: "Appendd after `slot-name` to add custom DNS binding. `-fe.example.com` bind `{slot-name}-fe.example.com`"
                 required: false
                 type: string
+            cloudflare-zone-id:
+                description: "The Target Zone ID in Cloudflare"
+                required: false
+                type: string
+                default: ""
         outputs:
             deployment_url: 
                 description: "URL of the most recent deployment"
@@ -30,6 +35,8 @@ on:
         secrets:
             AZURE_SERVICE_PRINCIPAL:
                 required: true
+            CLOUDFLARE_API_TOKEN:
+                required: false
 
 jobs:
     deploy:
@@ -60,6 +67,36 @@ jobs:
                   app-name: ${{ inputs.app-name }}
                   slot-name: ${{ inputs.slot-name }}
                   images: ${{ inputs.image-name }}
+
+            # Dynamically upsert the CNAME into Cloudflare targeting the default Azure slot domain
+            - name: Create Cloudflare CNAME Record
+              if: ${{ inputs.custom-url-suffix != '' && inputs.cloudflare-zone-id != '' }}
+              run: |
+                TARGET_RECORD="${{ inputs.slot-name }}.${{ inputs.custom-url-suffix }}"
+                AZURE_TARGET="${{ inputs.app-name }}-${{ inputs.slot-name }}.azurewebsites.net"
+                
+                echo "Checking for existing DNS record for $TARGET_RECORD..."
+                
+                # Check if record already exists
+                LIST_RESPONSE=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ inputs.cloudflare-zone-id }}/dns_records?name=$TARGET_RECORD&type=CNAME" \
+                    -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                    -H "Content-Type: application/json")
+                
+                RECORD_ID=$(echo "$LIST_RESPONSE" | jq -r '.result[0].id')
+                
+                if [ "$RECORD_ID" != "null" ] && [ -n "$RECORD_ID" ]; then
+                    echo "Record exists (ID: $RECORD_ID). Updating content to point to $AZURE_TARGET..."
+                    curl -s -X PATCH "https://api.cloudflare.com/client/v4/zones/${{ inputs.cloudflare-zone-id }}/dns_records/$RECORD_ID" \
+                    -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                    -H "Content-Type: application/json" \
+                    --data "{\"content\":\"$AZURE_TARGET\",\"proxied\":true}"
+                else
+                    echo "Record does not exist. Creating new proxied CNAME..."
+                    curl -s -X POST "https://api.cloudflare.com/client/v4/zones/${{ inputs.cloudflare-zone-id }}/dns_records" \
+                    -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                    -H "Content-Type: application/json" \
+                    --data "{\"type\":\"CNAME\",\"name\":\"$TARGET_RECORD\",\"content\":\"$AZURE_TARGET\",\"ttl\":1,\"proxied\":true}"
+                fi
 
             - name: Bind Custom Domain and Enable SSL
               uses: azure/CLI@v2
@@ -121,3 +158,22 @@ jobs:
                         --resource-group ${{ inputs.app-resource-group }} \
                         --slot ${{ inputs.slot-name }} \
                         --yes
+
+            - name: Purge Cloudflare DNS Record
+              if: ${{ inputs.custom-url-suffix != '' && inputs.cloudflare-zone-id != ''  }}
+              run: |
+                TARGET_RECORD="${{ inputs.slot-name }}.${{ inputs.custom-url-suffix }}"
+                
+                # Find the Cloudflare internal Record ID matching the ephemeral hostname
+                RECORD_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ inputs.cloudflare-zone-id }}/dns_records?name=$TARGET_RECORD" \
+                    -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                    -H "Content-Type: application/json" | jq -r '.result[0].id')
+                
+                if [ "$RECORD_ID" != "null" ] && [ -n "$RECORD_ID" ]; then
+                    echo "Deleting DNS record ID: $RECORD_ID for $TARGET_RECORD"
+                    curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ inputs.cloudflare-zone-id }}/dns_records/$RECORD_ID" \
+                    -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+                    -H "Content-Type: application/json"
+                else
+                    echo "No matching Cloudflare DNS record found for $TARGET_RECORD."
+                fi
