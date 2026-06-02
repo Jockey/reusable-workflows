@@ -170,6 +170,14 @@ cmd_deploy() {
         --generic-configurations '{"acrUseManagedIdentityCreds": false, "acrUserManagedIdentityID": ""}' \
         --output none
 
+    # Enable continuous deployment so any future pushes get handled "gracefully"
+    az webapp deployment container config \
+        --resource-group "$APP_RESOURCE_GROUP" \
+        --name "$APP_NAME" \
+        --slot "$SLOT_NAME" \
+        --enable-cd true \
+        --output none
+
     print_line
 
     if $use_custom_dns; then
@@ -204,7 +212,7 @@ cmd_deploy() {
             cf_upsert_dns "$CLOUDFLARE_ZONE_ID" TXT "asuid.${custom_hostname}" "$verify_id" false
 
             # ── CNAME unproxied — required for Azure SSL certificate issuance ─────────
-            info "Upserting unproxied CNAME for '$custom_hostname' → '$azure_target'..."
+            info "Upserting unproxied CNAME for '$custom_hostname'\n\t→ '$azure_target'..."
             cf_upsert_dns "$CLOUDFLARE_ZONE_ID" CNAME "$custom_hostname" "$azure_target" false
 
             info "Sleeping for 10s to let DNS propagate..."
