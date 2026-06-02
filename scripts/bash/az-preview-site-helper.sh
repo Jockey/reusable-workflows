@@ -23,15 +23,19 @@ set -euo pipefail
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-# Replaced Zsh prompt coloring with standard ANSI escape codes for Bash
 die() {
     printf "\e[31mERROR:\e[0m %s\n" "$*" >&2
     exit 1
 }
+
 info() {
     printf "\e[36m▶\e[0m %s\n" "$*"
 }
-# Added missing error helper targeted by CF routines
+
+print_line() {
+    printf "\e[36m-----\e[0m\n"
+}
+
 error() {
     printf "\e[31mERROR:\e[0m %s\n" "$*" >&2
 }
@@ -45,7 +49,6 @@ require_cmd() {
 azure_login() {
     info "Logging in to Azure..."
     [[ -z "${AZURE_SERVICE_PRINCIPAL:-}" ]] && die "AZURE_SERVICE_PRINCIPAL is not set."
-    # Swapped Zsh 'print' to standard Bash 'printf'
     az login --service-principal \
         --username="$(printf "%s" "$AZURE_SERVICE_PRINCIPAL" | jq -r '.clientId')" \
         --password="$(printf "%s" "$AZURE_SERVICE_PRINCIPAL" | jq -r '.clientSecret')" \
@@ -149,7 +152,7 @@ cmd_deploy() {
     azure_login
 
     # ── Create slot (syncs config from parent app) ──────────────────────────────
-    info "Creating slot '$SLOT_NAME'"
+    info "Upserting App Service: '$APP_NAME' | Slot: '$SLOT_NAME'"
     az webapp deployment slot create \
         --resource-group "$APP_RESOURCE_GROUP" \
         --name "$APP_NAME" \
@@ -167,48 +170,71 @@ cmd_deploy() {
         --generic-configurations '{"acrUseManagedIdentityCreds": false, "acrUserManagedIdentityID": ""}' \
         --output none
 
+    print_line
+
     if $use_custom_dns; then
         [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] && die "CLOUDFLARE_API_TOKEN is not set."
 
-        local azure_target="${APP_NAME}-${SLOT_NAME}.azurewebsites.net"
-
-        # ── TXT verification record (unproxied) ──────────────────────────────────
-        local verify_id
-        verify_id=$(az webapp show \
-            --name "$APP_NAME" \
-            --resource-group "$APP_RESOURCE_GROUP" \
-            --query "customDomainVerificationId" \
-            -o tsv)
-
-        info "Upserting domain verification TXT record for 'asuid.${custom_hostname}'..."
-        cf_upsert_dns "$CLOUDFLARE_ZONE_ID" TXT "asuid.${custom_hostname}" "$verify_id" false
-
-        # ── CNAME unproxied — required for Azure SSL certificate issuance ─────────
-        info "Upserting unproxied CNAME for '$custom_hostname' → '$azure_target'..."
-        cf_upsert_dns "$CLOUDFLARE_ZONE_ID" CNAME "$custom_hostname" "$azure_target" false
-
-        # ── Bind hostname + issue managed SSL ────────────────────────────────────
-        info "Configuring custom domain: '$custom_hostname'..."
-        az webapp config hostname add \
+        # Check if the hostname is already bound to this specific slot
+        info "Checking if custom domain '$custom_hostname' is already configured..."
+        local dns_already_configured
+        dns_already_configured=$(az webapp config hostname list \
             --webapp-name "$APP_NAME" \
             --resource-group "$APP_RESOURCE_GROUP" \
             --slot "$SLOT_NAME" \
-            --hostname "$custom_hostname" \
-            --output none
+            --query "[?name=='${custom_hostname}'].name | [0]" \
+            -o tsv)
 
-        info "Binding SSL certificate (SNI)..."
-        az webapp config ssl bind \
-            --name "$APP_NAME" \
-            --resource-group "$APP_RESOURCE_GROUP" \
-            --slot "$SLOT_NAME" \
-            --certificate-thumbprint "$SSL_CERT_THUMBPRINT" \
-            --ssl-type SNI \
-            --output none
+        if [[ "$dns_already_configured" == "$custom_hostname" ]]; then
+            info "Custom domain '$custom_hostname' is already bound to slot."
+            info "Skipping SSL/DNS configuration."
+        else
+            info "Custom domain not configured. Will set up DNS and SSL..."
+            local azure_target="${APP_NAME}-${SLOT_NAME}.azurewebsites.net"
 
-        # ── Re-enable Cloudflare proxy now that SSL is bound ─────────────────────
-        info "Enabling Cloudflare proxy on '$custom_hostname'..."
-        cf_upsert_dns "$CLOUDFLARE_ZONE_ID" CNAME "$custom_hostname" "$azure_target" true
+            # ── TXT verification record (unproxied) ──────────────────────────────────
+            local verify_id
+            verify_id=$(az webapp show \
+                --name "$APP_NAME" \
+                --resource-group "$APP_RESOURCE_GROUP" \
+                --query "customDomainVerificationId" \
+                -o tsv)
+
+            info "Upserting domain verification TXT record for 'asuid.${custom_hostname}'..."
+            cf_upsert_dns "$CLOUDFLARE_ZONE_ID" TXT "asuid.${custom_hostname}" "$verify_id" false
+
+            # ── CNAME unproxied — required for Azure SSL certificate issuance ─────────
+            info "Upserting unproxied CNAME for '$custom_hostname' → '$azure_target'..."
+            cf_upsert_dns "$CLOUDFLARE_ZONE_ID" CNAME "$custom_hostname" "$azure_target" false
+
+            info "Sleeping for 10s to let DNS propagate..."
+            sleep 10
+
+            # ── Bind hostname + issue managed SSL ────────────────────────────────────
+            info "Configuring custom domain: '$custom_hostname'..."
+            az webapp config hostname add \
+                --webapp-name "$APP_NAME" \
+                --resource-group "$APP_RESOURCE_GROUP" \
+                --slot "$SLOT_NAME" \
+                --hostname "$custom_hostname" \
+                --output none
+
+            info "Binding SSL certificate (SNI)..."
+            az webapp config ssl bind \
+                --name "$APP_NAME" \
+                --resource-group "$APP_RESOURCE_GROUP" \
+                --slot "$SLOT_NAME" \
+                --certificate-thumbprint "$SSL_CERT_THUMBPRINT" \
+                --ssl-type SNI \
+                --output none
+
+            # ── Re-enable Cloudflare proxy now that SSL is bound ─────────────────────
+            info "Enabling Cloudflare proxy on '$custom_hostname'..."
+            cf_upsert_dns "$CLOUDFLARE_ZONE_ID" CNAME "$custom_hostname" "$azure_target" true
+        fi
     fi
+
+    print_line
 
     # ── Output deployment URL ──────────────────────────────────────────────────
     local deployment_url
@@ -221,8 +247,9 @@ cmd_deploy() {
     info "Deployment complete."
     printf "deployment_url=%s\n" "${deployment_url}"
 
-    # Append to GITHUB_OUTPUT for GitHub Actions integration if running in CI
     if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        # Expose the value to the Github Action runner so it can be picked up
+        # by caller workflows
         printf "deployment_url=%s\n" "${deployment_url}" >>"$GITHUB_OUTPUT"
     fi
 }
@@ -258,7 +285,6 @@ cmd_cleanup() {
 
 # ── entrypoint ────────────────────────────────────────────────────────────────
 
-# Changed local assignment to a normal variable since it runs at top-level context
 subcommand="${1:-}"
 shift || true
 
