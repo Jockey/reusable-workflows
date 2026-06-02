@@ -23,6 +23,10 @@ on:
                 description: "Full Docker image identifier. Format MUST be `*.azurecr.io/*``"
                 required: true
                 type: string
+            ssl-cert-thumbprint:
+                description: SSL Certificate Thumbprint. See output of  `az webapp config ssl list --resource-group $APP_RESOURCE_GROUP` and look for the Certificate for `*.$CUSTOM_URL_SUFFIX`
+                required: true
+                type: string
         secrets:
             AZURE_SERVICE_PRINCIPAL:
                 description: Azure Service Principal Data, JSON string
@@ -32,9 +36,6 @@ on:
                 required: true
             CLOUDFLARE_ZONE_ID:
                 description: Cloudflare Zone ID to manage
-                required: true
-            SSL_CERT_THUMBPRINT:
-                description: SSL Certificate Thumbprint. See output of  `az webapp config ssl list --resource-group $APP_RESOURCE_GROUP` and look for the Certificate for `*.$CUSTOM_URL_SUFFIX`
                 required: true
         outputs:
             deployment_url:
@@ -61,7 +62,7 @@ jobs:
                   SLOT_NAME: ${{ inputs.slot-name }}
                   CUSTOM_URL_SUFFIX: ${{ inputs.custom-url-suffix }}
                   IMAGE_NAME: ${{ inputs.image-name }}
-                  SSL_CERT_THUMBPRINT: ${{ secrets.SSL_CERT_THUMBPRINT }}
+                  ssl-cert-thumbprint: ${{ inputs.ssl-cert-thumbprint }}
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
                   # We have to download the script, despite it being in this repo.
               run: |
@@ -86,7 +87,7 @@ jobs:
                   SLOT_NAME: ${{ inputs.slot-name }}
                   CUSTOM_URL_SUFFIX: ${{ inputs.custom-url-suffix }}
                   IMAGE_NAME: ${{ inputs.image-name }}
-                  SSL_CERT_THUMBPRINT: ${{ secrets.SSL_CERT_THUMBPRINT }}
+                  ssl-cert-thumbprint: ${{ inputs.ssl-cert-thumbprint }}
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
               # We have to download the script, despite it being in this repo.
               run: |
