@@ -32,7 +32,7 @@ on:
                 description: Azure Service Principal Data, JSON string
                 required: true
             CLOUDFLARE_API_TOKEN:
-                description: Cloudflare API token, with `DNS:Read, DNS:Edit` permissions
+                description: Cloudflare API token, with zone-level `DNS:Read, DNS:Edit, Cache Purge:Purge` permissions
                 required: true
             CLOUDFLARE_ZONE_ID:
                 description: Cloudflare Zone ID to manage

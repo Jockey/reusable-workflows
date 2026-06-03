@@ -137,6 +137,28 @@ cf_delete_dns() {
     fi
 }
 
+# Purges the Cache for an entire hostname
+# Usage: cf_cache_purge <zone-id> <hostname>
+cf_cache_purge() {
+    local zone_id="$1" host_name="$2"
+
+    info "Purging CF Cache for '$host_name' ..."
+    response=$(curl -s -X POST \
+        "https://api.cloudflare.com/client/v4/zones/$zone_id/purge_cache" \
+        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "{\"hosts\": [\"$host_name\"]}")
+
+    # Evaluate execution status of the mutation step
+    if [[ "$(echo "$response" | jq -r '.success // false')" == "true" ]]; then
+        info "Success: Purged CF Cache"
+    else
+        error "Failed to Purge Cache"
+        error "Details: $(echo "$response" | jq -c '.errors // empty')"
+        return 1
+    fi
+}
+
 # ── sub-commands ──────────────────────────────────────────────────────────────
 
 cmd_deploy() {
@@ -148,8 +170,7 @@ cmd_deploy() {
         custom_hostname="${SLOT_NAME}${CUSTOM_URL_SUFFIX}"
     fi
 
-    require_cmd az curl jq
-    azure_login
+    require_cmd az curl jq azure_login
 
     # ── Create slot (syncs config from parent app) ──────────────────────────────
     info "Upserting App Service: '$APP_NAME' | Slot: '$SLOT_NAME'"
@@ -198,6 +219,9 @@ cmd_deploy() {
         if [[ "$dns_already_configured" == "$custom_hostname" ]]; then
             info "Custom domain '$custom_hostname' is already bound to slot."
             info "Skipping SSL/DNS configuration."
+
+            sleep 5 # Wait 5s to let the deploy spin up
+            cf_cache_purge "$CLOUDFLARE_ZONE_ID" "$custom_hostname"
         else
             info "Custom domain not configured. Will set up DNS and SSL..."
             local azure_target="${APP_NAME}-${SLOT_NAME}.azurewebsites.net"
