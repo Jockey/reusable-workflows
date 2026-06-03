@@ -62,7 +62,7 @@ jobs:
                   SLOT_NAME: ${{ inputs.slot-name }}
                   CUSTOM_URL_SUFFIX: ${{ inputs.custom-url-suffix }}
                   IMAGE_NAME: ${{ inputs.image-name }}
-                  ssl-cert-thumbprint: ${{ inputs.ssl-cert-thumbprint }}
+                  SSL_CERT_THUMBPRINT: ${{ inputs.ssl-cert-thumbprint }}
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
                   # We have to download the script, despite it being in this repo.
               run: |
@@ -87,7 +87,7 @@ jobs:
                   SLOT_NAME: ${{ inputs.slot-name }}
                   CUSTOM_URL_SUFFIX: ${{ inputs.custom-url-suffix }}
                   IMAGE_NAME: ${{ inputs.image-name }}
-                  ssl-cert-thumbprint: ${{ inputs.ssl-cert-thumbprint }}
+                  SSL_CERT_THUMBPRINT: ${{ inputs.ssl-cert-thumbprint }}
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
               # We have to download the script, despite it being in this repo.
               run: |

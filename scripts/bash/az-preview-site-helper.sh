@@ -161,7 +161,9 @@ cmd_deploy() {
         --output none #Default is "json"
 
     info "Deploying image '$IMAGE_NAME'"
-    # Uses the Admin credentials, and uses an Azure Container Registry
+    # Configures the image source to be "Azure Container",
+    # and tells the App Service Slot to use "Admin Credentials"
+    # which gets sorted out by Azure, it doesn't use the Service Principal or anything.
     az webapp config set \
         --resource-group "$APP_RESOURCE_GROUP" \
         --name "$APP_NAME" \
