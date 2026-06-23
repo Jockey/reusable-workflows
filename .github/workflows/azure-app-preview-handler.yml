@@ -49,8 +49,11 @@ jobs:
         outputs:
             deployment_url: ${{ steps.run-deploy.outputs.deployment_url }}
         steps:
-            - name: Checkout code
+            - name: Checkout Reusable Workflow Repo
               uses: actions/checkout@v6
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
 
             - name: Run Deploy Script
               id: run-deploy
@@ -66,17 +69,18 @@ jobs:
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
                   # We have to download the script, despite it being in this repo.
               run: |
-                  curl -o $PWD/helper.sh https://raw.githubusercontent.com/Jockey/reusable-workflows/master/scripts/bash/az-preview-site-helper.sh
-                  chmod +x $PWD/helper.sh
-                  # Call the helper script in `deploy` mode
-                  ./helper.sh deploy
+                  chmod +x ./scripts/bash/az-preview-site-helper.sh
+                  ./scripts/bash/az-preview-site-helper.sh deploy
 
     cleanup:
         if: github.event.action == 'closed'
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout code
+            - name: Checkout Reusable Workflow Repo
               uses: actions/checkout@v6
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
 
             - name: Run Cleanup Script
               env:
@@ -91,7 +95,5 @@ jobs:
                   CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
               # We have to download the script, despite it being in this repo.
               run: |
-                  curl -o $PWD/helper.sh https://raw.githubusercontent.com/Jockey/reusable-workflows/master/scripts/bash/az-preview-site-helper.sh
-                  chmod +x $PWD/helper.sh
-                  # Call the helper script in `cleanup` mode
-                  ./helper.sh cleanup
+                  chmod +x ./scripts/bash/az-preview-site-helper.sh
+                  ./scripts/bash/az-preview-site-helper.sh cleanup
