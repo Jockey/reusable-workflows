@@ -76,16 +76,41 @@ jobs:
                   chmod +x ./scripts/bash/az-preview-site-helper.sh
                   ./scripts/bash/az-preview-site-helper.sh deploy
 
-            - name: Comment on PR with Preview URL
-              if: github.event_name == 'pull_request'
-              uses: jupier/powerful-pr-comment@v0.0.5
+            - name: Post or Update Preview URL Comment
+              uses: actions/github-script@v9
               with:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  sticky: true
-                  body: |
-                      ### 🚀 Preview URL Ready!
+                  script: |
+                      const issue_number = context.issue.number;
+                      const previewUrl = "${{ steps.run_deploy.outputs.deployment_url}}";
+                      const anchor = "<a id="pr-preview-url"></a>";
+                      const body = `${anchor}\nPreview URL: ${previewUrl}`;
 
-                      **URL:** [${{ steps.run_deploy.outputs.deployment_url }}](${{ steps.run_deploy.outputs.deployment_url }})
+                      // Find existing comment with anchor
+                      const comments = await github.rest.issues.listComments({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: issue_number,
+                      });
+
+                      const existingComment = comments.data.find(c => c.body.includes(anchor));
+
+                      if (existingComment) {
+                        // Update existing comment
+                        await github.rest.issues.updateComment({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            comment_id: existingComment.id,
+                            body: body
+                        });
+                      } else {
+                        // Create new comment
+                        await github.rest.issues.createComment({
+                            owner: context.repo.owner,
+                            repo: context.repo.repo,
+                            issue_number: issue_number,
+                            body: body
+                        });
+                      }
 
     cleanup:
         if: github.event.action == 'closed'
