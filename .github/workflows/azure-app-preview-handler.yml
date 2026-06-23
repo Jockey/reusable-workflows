@@ -82,7 +82,7 @@ jobs:
                   script: |
                       const issue_number = context.issue.number;
                       const previewUrl = "${{ steps.run_deploy.outputs.deployment_url}}";
-                      const anchor = "<a id="pr-preview-url"></a>";
+                      const anchor = "<a id=\"pr-preview-url\"></a>";
                       const body = `${anchor}\nPreview URL: ${previewUrl}`;
 
                       // Find existing comment with anchor
