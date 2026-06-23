@@ -51,17 +51,28 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
-      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache
+      # Cache is scoped per-branch to avoid different branches causing thrashing by modifying the same cache.
+      # Falls back to the main-branch cache below via an extra `cache-from` entry.
+      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-${{ github.ref_name }}
+      CACHE_IMAGE_REF_FALLBACK: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-develop
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v6
 
+      - name: Checkout helper scripts
+        uses: actions/checkout@v6
+        with:
+          repository: Jockey/reusable-workflows
+          ref: master # Can pin to a tag or SHA for stability/reproducibility
+          sparse-checkout: |
+            scripts/bash/extract-value-from-map.sh
+          sparse-checkout-cone-mode: false
+          path: .reusable-workflows
+
       - name: Determine Deploy Env
-        # We have to download the script, despite it being in this repo.
         run: |
-          curl -o $PWD/map-extract.sh https://raw.githubusercontent.com/Jockey/reusable-workflows/master/scripts/bash/extract-value-from-map.sh
-          chmod +x $PWD/map-extract.sh
-          echo "DEPLOY_ENV=$($PWD/map-extract.sh -k '${{ github.base_ref }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
+          chmod +x ./.reusable-workflows/scripts/bash/extract-value-from-map.sh
+          echo "DEPLOY_ENV=$(./.reusable-workflows/scripts/bash/extract-value-from-map.sh -k '${{ github.base_ref }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
 
       - name: Check Deploy Env
         run: |
@@ -88,8 +99,26 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          cache-from: type=registry,ref=${{ env.CACHE_IMAGE_REF }}
-          cache-to: type=registry,mode=min,ref=${{ env.CACHE_IMAGE_REF }}
+          # mode=max caches ALL layers (including intermediate/builder-stage
+          # layers in multi-stage Dockerfiles), not just the ones in the
+          # final image. mode=min (the old setting) skips those, so anything
+          # built in an earlier stage (deps install, compile, etc.) was
+          # re-running from scratch on every build.
+          #
+          # cache-from now checks two sources:
+          #   1. type=gha   - GitHub's own cache backend; faster than a
+          #                   registry round-trip (capped ~10GB/repo, LRU).
+          #   2. type=registry (this branch) - your existing per-branch cache.
+          #   3. type=registry (main branch) - fallback so a brand-new
+          #                   branch/PR still gets a warm cache instead of
+          #                   starting cold.
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.CACHE_IMAGE_REF }}
+            type=registry,ref=${{ env.CACHE_IMAGE_REF_FALLBACK }}
+          cache-to: |
+            type=gha,mode=max
+            type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}

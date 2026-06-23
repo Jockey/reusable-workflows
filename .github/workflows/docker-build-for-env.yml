@@ -28,12 +28,12 @@ on:
         required: true
         type: string
     outputs:
-      tagless_image_url: 
-        description: "The \"tagless\" Docker image URL. So would be \"{docker_registry}{docker_image_name}:{deploy_environment}\""
+      tagless_image_url:
+        description: 'The "tagless" Docker image URL. So would be "{docker_registry}{docker_image_name}:{deploy_environment}"'
         value: ${{ jobs.build_and_publish.outputs.tagless_image_url }}
-      tagged_image_url: 
-        description: "The \"full\" Docker image URL. So would be \"{docker_registry}{docker_image_name}:{deploy_environment}-{build_id}\""
-        value: ${{ jobs.build_and_publish.outputs.tagless_image_url }}
+      tagged_image_url:
+        description: 'The "full" Docker image URL. So would be "{docker_registry}{docker_image_name}:{deploy_environment}-{build_id}"'
+        value: ${{ jobs.build_and_publish.outputs.tagged_image_url }}
     secrets:
       DOCKER_REGISTRY_USERNAME:
         required: true
@@ -59,15 +59,27 @@ jobs:
         run: |
           lowercase_env=$(echo "${{ inputs.deploy_environment }}" | tr '[:upper:]' '[:lower:]')
           echo "lowercase_env=${lowercase_env}" >> $GITHUB_OUTPUT
+
           tagless_image_base=$(echo "${{ inputs.docker_registry }}${{ inputs.docker_image_name }}:${lowercase_env}")
           echo "tagless_img_url=$(echo ${tagless_image_base})" >> $GITHUB_OUTPUT
-          echo "cache_image_ref=$(echo ${tagless_image_base}-buildcache)" >> $GITHUB_OUTPUT
           echo "tagged_img_name=$(echo ${tagless_image_base}-${{ inputs.build_id }})" >> $GITHUB_OUTPUT
 
-      - name: Print Deploy ifno
+          # Docker tags can't contain slashes, so branch names like
+          # "feature/foo" need sanitizing before being used as a tag.
+          safe_branch=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          echo "safe_branch=${safe_branch}" >> $GITHUB_OUTPUT
+
+          # Branch-scoped cache: isolates cache between divergent branches building to the same environment
+          echo "cache_image_ref=$(echo ${tagless_image_base}-buildcache-${safe_branch})" >> $GITHUB_OUTPUT
+
+          # Environment-scoped fallback cache (no branch suffix):
+          # Every build also writes here, so a brand-new branch still gets a baseline cache
+          echo "cache_image_ref_fallback=$(echo ${tagless_image_base}-buildcache)" >> $GITHUB_OUTPUT
+
+      - name: Print Deploy Info
         run: |
           echo "Building ${{ steps.build_strs.outputs.tagged_img_name }}"
-          echo "Using ${{ steps.build_strs.outputs.cache_image_ref }} as Build Cache"
+          echo "Using ${{ steps.build_strs.outputs.cache_image_ref }} as Build Cache (fallback: ${{ steps.build_strs.outputs.cache_image_ref_fallback }})"
 
       - name: Login to Docker Registry
         uses: docker/login-action@v4
@@ -85,8 +97,17 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          cache-from: type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref }}
-          cache-to: type=registry,mode=min,ref=${{ steps.build_strs.outputs.cache_image_ref }}
+          # cache-from checks, in order: GitHub's own cache backend (fast,
+          # no registry round-trip), then the branch+env-scoped cache, then
+          # the env-scoped fallback cache so new branches aren't cold.
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref }}
+            type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref_fallback }}
+          cache-to: |
+            type=gha,mode=max
+            type=registry,mode=max,ref=${{ steps.build_strs.outputs.cache_image_ref }}
+            type=registry,mode=max,ref=${{ steps.build_strs.outputs.cache_image_ref_fallback }}
           tags: ${{ steps.build_strs.outputs.tagged_img_name }}
           # DEPLOY_ENV may be required by the build script
           build-args: |
