@@ -51,10 +51,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
-      # Cache is scoped per-branch to avoid different branches causing thrashing by modifying the same cache.
-      # Falls back to the main-branch cache below via an extra `cache-from` entry.
-      CACHE_IMAGE_REF: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-${{ github.ref_name }}
-      CACHE_IMAGE_REF_FALLBACK: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-develop
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v6
@@ -83,6 +79,18 @@ jobs:
             echo "DEPLOY_ENV is: '${{ env.DEPLOY_ENV }}'"
           fi
 
+      - name: Compute Cache Refs
+        # Docker tags can't contain "/", but github.ref_name will contain
+        # one for any branch with a slash in its name (e.g. "feature/foo").
+        #
+        # Cache is scoped per-branch to avoid different branches causing
+        # thrashing by overwriting the same cache. Falls back to the
+        # develop-branch cache below via an extra `cache-from` entry.
+        run: |
+          safe_branch=$(echo "${{ github.ref_name }}" | tr '/' '-')
+          echo "CACHE_IMAGE_REF=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-${safe_branch}" >> $GITHUB_ENV
+          echo "CACHE_IMAGE_REF_FALLBACK=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-develop" >> $GITHUB_ENV
+
       - name: Login to Docker Registry
         uses: docker/login-action@v4
         with:
@@ -109,7 +117,7 @@ jobs:
           #   1. type=gha   - GitHub's own cache backend; faster than a
           #                   registry round-trip (capped ~10GB/repo, LRU).
           #   2. type=registry (this branch) - your existing per-branch cache.
-          #   3. type=registry (main branch) - fallback so a brand-new
+          #   3. type=registry (develop branch) - fallback so a brand-new
           #                   branch/PR still gets a warm cache instead of
           #                   starting cold.
           cache-from: |
