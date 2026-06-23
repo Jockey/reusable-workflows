@@ -52,7 +52,7 @@ jobs:
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
     outputs:
-      image_fqn: ${{ steps.set-output.outputs.image_fqn }}
+      image_fqn: ${{ steps.set_output_step.outputs.image_fqn }}
     steps:
       # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v6
@@ -136,5 +136,5 @@ jobs:
 
       # Set the output variable from the full Docker image name
       - name: Export Full Image Name
-        id: set-output
+        id: set_output_step
         run: echo "image_fqn=${{ env.CONTAINER_FQN }}" >> $GITHUB_OUTPUT
