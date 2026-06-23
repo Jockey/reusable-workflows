@@ -1,1 +1,6 @@
 .DS_Store
+
+# Suppress all env files
+.env
+*/**/.env
+**/.env
