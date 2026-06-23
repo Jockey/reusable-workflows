@@ -171,6 +171,7 @@ cmd_deploy() {
     fi
 
     require_cmd az curl jq azure_login
+    azure_login
 
     # ── Create slot (syncs config from parent app) ──────────────────────────────
     info "Upserting App Service: '$APP_NAME' | Slot: '$SLOT_NAME'"
