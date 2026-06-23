@@ -81,9 +81,8 @@ jobs:
               with:
                   script: |
                       const issue_number = context.issue.number;
-                      const previewUrl = "${{ steps.run_deploy.outputs.deployment_url}}";
-                      const anchor = '<a id="pr-preview-url"></a>';
-                      const body = `${anchor}\nPreview URL: ${previewUrl}`;
+                      const previewUrl = '<a href="${{ steps.run_deploy.outputs.deployment_url}}" target="_blank" id="pr-preview-url">${{ steps.run_deploy.outputs.deployment_url}}</a>';
+                      const body = `### Preview Site 🚀 \n**URL:** ${previewUrl}`;
 
                       // Find existing comment with anchor
                       const comments = await github.rest.issues.listComments({
@@ -92,7 +91,7 @@ jobs:
                         issue_number: issue_number,
                       });
 
-                      const existingComment = comments.data.find(c => c.body.includes(anchor));
+                      const existingComment = comments.data.find(c => c.body.includes('id="pr-preview-url"'));
 
                       if (existingComment) {
                         // Update existing comment
