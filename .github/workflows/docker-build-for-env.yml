@@ -46,7 +46,7 @@ env:
 jobs:
   build_and_publish:
     name: Docker Build & Publish
-    runs-on: ubuntu-latest
+    runs-on: 8-core-linux-arm64
     outputs:
       tagless_image_url: ${{ steps.build_strs.outputs.tagless_img_url }}
       tagged_image_url: ${{ steps.build_strs.outputs.tagged_img_name }}
