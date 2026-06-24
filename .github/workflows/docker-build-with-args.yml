@@ -49,7 +49,7 @@ env:
 jobs:
   build_and_publish:
     name: Docker Build & Publish
-    runs-on: 8-core-linux-arm64
+    runs-on: ubuntu-latest
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
     steps:
