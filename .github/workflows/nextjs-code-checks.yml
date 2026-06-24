@@ -27,11 +27,22 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v6
 
-      - name: Install node_modules from Cache
-        uses: actions/cache@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          path: "**/node_modules"
-          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}-checks
+          node-version: "lts"
+          cache: "yarn"
+
+      # Cache TS and ESLint compilation states
+      - name: Restore Lint & TS Cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .eslintcache
+            *.tsbuildinfo
+          key: ${{ runner.os }}-checks-compiler-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-checks-compiler-
 
       - name: Pre-Install Script
         run: ${{ inputs.pre_install_script }}
@@ -45,10 +56,10 @@ jobs:
 
       # Check TypeScript and eslint
       - name: TypeScript Check
-        run: yarn check-typescript
+        run: yarn check-typescript --incremental --tsBuildInfoFile tscheck.tsbuildinfo
 
       - name: eslint Check
-        run: yarn check-eslint
+        run: yarn check-eslint --cache --cache-location .eslintcache
 
       - name: Post-Checks Script
         run: ${{ inputs.post_checks_script }}
