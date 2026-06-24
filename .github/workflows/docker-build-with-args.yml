@@ -127,7 +127,7 @@ jobs:
             type=registry,ref=${{ env.CACHE_IMAGE_REF_FALLBACK }}
           cache-to: |
             type=gha,mode=max
-            type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
+            type=registry,mode=min,ref=${{ env.CACHE_IMAGE_REF }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
