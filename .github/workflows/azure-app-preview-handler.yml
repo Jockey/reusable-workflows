@@ -56,8 +56,8 @@ jobs:
             - name: Checkout Reusable Workflow Repo
               uses: actions/checkout@v6
               with:
-                  repository: ${{ github.workflow_ref }}
-                  ref: ${{ github.workflow_ref }}
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
 
             - name: Run Deploy Script
               id: run_deploy
