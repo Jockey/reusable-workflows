@@ -56,8 +56,8 @@ jobs:
             - name: Checkout Reusable Workflow Repo
               uses: actions/checkout@v6
               with:
-                  repository: ${{ job.workflow_repository }}
-                  ref: ${{ job.workflow_sha }}
+                  repository: ${{ github.workflow_ref }}
+                  ref: ${{ github.workflow_ref }}
 
             - name: Run Deploy Script
               id: run_deploy
@@ -78,10 +78,12 @@ jobs:
 
             - name: Add Preview URL to PR
               uses: actions/github-script@v9
+              env:
+                  DEPLOY_URL: ${{ steps.run_deploy.outputs.deployment_url }}
               with:
                   script: |
                       const pr_number = context.issue.number;
-                      const previewUrl = '<a href="${{ steps.run_deploy.outputs.deployment_url}}" target="_blank">${{ steps.run_deploy.outputs.deployment_url}}</a>';
+                      const previewUrl = '<a href="${process.env.DEPLOY_URL}" target="_blank">${process.env.DEPLOY_URL}</a>';
 
                       const startAnchor = '<span id="pr-preview-url-start"></span>';
                       const endAnchor = '<span id="pr-preview-url-end"></span>';

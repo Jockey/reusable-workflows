@@ -40,8 +40,9 @@ jobs:
           path: |
             .eslintcache
             *.tsbuildinfo
-          key: ${{ runner.os }}-checks-compiler-${{ github.sha }}
+          key: ${{ runner.os }}-checks-compiler-${{ hashFiles('yarn.lock') }}-
           restore-keys: |
+            ${{ runner.os }}-checks-compiler-${{ hashFiles('yarn.lock') }}-
             ${{ runner.os }}-checks-compiler-
 
       - name: Pre-Install Script

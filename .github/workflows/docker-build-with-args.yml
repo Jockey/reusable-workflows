@@ -69,7 +69,7 @@ jobs:
       - name: Determine Deploy Env
         run: |
           chmod +x ./.reusable-workflows/scripts/bash/extract-value-from-map.sh
-          echo "DEPLOY_ENV=$(./.reusable-workflows/scripts/bash/extract-value-from-map.sh -k '${{ github.base_ref }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
+          echo "DEPLOY_ENV=$(./.reusable-workflows/scripts/bash/extract-value-from-map.sh -k '${{ github.base_ref || github.ref_name }}' -m '${{ inputs.branch_environment_map }}' -d '${{ inputs.deploy_environment }}')" >> $GITHUB_ENV
 
       - name: Check Deploy Env
         run: |
