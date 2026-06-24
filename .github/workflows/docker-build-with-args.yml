@@ -90,6 +90,8 @@ jobs:
         run: |
           safe_branch=$(echo "${{ github.ref_name }}" | tr '/' '-')
           echo "CACHE_IMAGE_REF=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-${safe_branch}" >> $GITHUB_ENV
+          echo "CACHE_IMAGE_REF_FALLBACK=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-develop" >> $GITHUB_ENV
+
       - name: Login to Docker Registry
         uses: docker/login-action@v4
         with:
@@ -108,19 +110,25 @@ jobs:
           push: true
           # mode=max caches ALL layers (including intermediate/builder-stage
           # layers in multi-stage Dockerfiles), not just the ones in the
-          # final image.
+          # final image. mode=min (the old setting) skips those, so anything
+          # built in an earlier stage (deps install, compile, etc.) was
+          # re-running from scratch on every build.
           #
           # cache-from now checks two sources:
           #   1. type=gha   - GitHub's own cache backend; faster than a
           #                   registry round-trip (capped ~10GB/repo, LRU).
           #   2. type=registry (this branch) - your existing per-branch cache.
+          #   3. type=registry (develop branch) - fallback so a brand-new
+          #                   branch/PR still gets a warm cache instead of
+          #                   starting cold.
           cache-from: |
             type=gha
             type=registry,ref=${{ env.CACHE_IMAGE_REF }}
             type=registry,ref=${{ env.CACHE_IMAGE_REF_FALLBACK }}
-          cache-to: |
+            cache-to: |
             type=gha,mode=max
             type=registry,mode=min,ref=${{ env.CACHE_IMAGE_REF }}
+            type=registry,mode=min,ref=${{ env.CACHE_IMAGE_REF_FALLBACK }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
