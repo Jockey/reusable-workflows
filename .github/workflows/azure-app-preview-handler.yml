@@ -83,7 +83,7 @@ jobs:
               with:
                   script: |
                       const pr_number = context.issue.number;
-                      const previewUrl = '<a href="${process.env.DEPLOY_URL}" target="_blank">${process.env.DEPLOY_URL}</a>';
+                      const previewUrl = '<a href="${{ steps.run_deploy.outputs.deployment_url}}" target="_blank">${{ steps.run_deploy.outputs.deployment_url}}</a>';
 
                       const startAnchor = '<span id="pr-preview-url-start"></span>';
                       const endAnchor = '<span id="pr-preview-url-end"></span>';
