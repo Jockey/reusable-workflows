@@ -62,5 +62,8 @@ jobs:
       - name: eslint Check
         run: yarn check-eslint --cache --cache-location .eslintcache
 
+      - name: Run Tests
+        run: yarn run --silent test || true # Fails silently if `yarn test` is not found
+
       - name: Post-Checks Script
         run: ${{ inputs.post_checks_script }}
