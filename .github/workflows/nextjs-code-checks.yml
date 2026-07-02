@@ -63,7 +63,12 @@ jobs:
         run: yarn check-eslint --cache --cache-location .eslintcache
 
       - name: Run Tests
-        run: yarn run --silent test || true # Fails silently if `yarn test` is not found
+        run: |
+          if jq -e '.scripts.test' package.json > /dev/null; then
+            yarn test
+          else
+            echo "No `test` script found in package.json, skipping."
+          fi
 
       - name: Post-Checks Script
         run: ${{ inputs.post_checks_script }}
