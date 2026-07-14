@@ -73,8 +73,8 @@ jobs:
 
       - name: Check Deploy Env
         run: |
-          if [ -z "${{ env.DEPLOY_ENV }}" ]; then
-            echo "Error: DEPLOY_ENV is empty. Exiting."
+          if [ -z "${{ env.DEPLOY_ENV }}" ] || [ "${{ env.DEPLOY_ENV }}" = "null" ]; then
+            echo "Error: DEPLOY_ENV is empty or 'null'. Exiting."
             exit 1
           else
             echo "DEPLOY_ENV is: '${{ env.DEPLOY_ENV }}'"
