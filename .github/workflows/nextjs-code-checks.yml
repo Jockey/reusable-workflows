@@ -57,14 +57,28 @@ jobs:
 
       # Check TypeScript and eslint
       - name: TypeScript Check
-        run: yarn check-typescript --incremental --tsBuildInfoFile tscheck.tsbuildinfo
+        run: |
+          if jq -e '.scripts["check-typescript"]' package.json > /dev/null; then
+            yarn check-typescript --incremental --tsBuildInfoFile tscheck.tsbuildinfo
+          else
+            echo "Error: No "check-typescript" script found in package.json" >&2
+            exit 1
+          fi
 
-      - name: eslint Check
-        run: yarn check-eslint --cache --cache-location .eslintcache
+      - name: eslint / oxlint Check
+        run: |
+          if jq -e '.scripts["check-oxlint"]' package.json > /dev/null; then
+            yarn check-oxlint
+          elif jq -e '.scripts["check-eslint"]' package.json > /dev/null; then
+            yarn check-eslint --cache --cache-location .eslintcache
+          else
+            echo "Error: No "check-*lint" script found in package.json" >&2
+            exit 1
+          fi
 
       - name: Run Tests
         run: |
-          if jq -e '.scripts.test' package.json > /dev/null; then
+          if jq -e '.scripts["test"]' package.json > /dev/null; then
             yarn test
           else
             echo "No `test` script found in package.json, skipping."
