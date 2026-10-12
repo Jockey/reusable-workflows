@@ -1,0 +1,71 @@
+name: Remove PR Labels
+
+on:
+  workflow_call:
+    inputs:
+      labels_to_remove:
+        description: "Comma-separated list of labels to remove from the PR"
+        required: true
+        type: string
+      pr_number:
+        description: "Pull request number (defaults to github.event.pull_request.number)"
+        required: false
+        type: number
+
+permissions:
+  pull-requests: write
+
+jobs:
+  remove-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove PR Labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          LABELS_TO_REMOVE: ${{ inputs.labels_to_remove }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "::error::PR number is required or could not be determined from the event context."
+            exit 1
+          fi
+
+          # Trim leading/trailing whitespace and check if empty
+          TRIMMED_LABELS=$(echo "${LABELS_TO_REMOVE:-}" | xargs)
+          if [ -z "$TRIMMED_LABELS" ]; then
+            echo "::error::No labels supplied to remove."
+            exit 1
+          fi
+
+          # Fetch all current labels on the PR
+          CURRENT_LABELS=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels.[].name')
+
+          REMOVE_FLAGS=()
+          LABELS_TO_DELETE=()
+
+          # Convert comma-separated string into a bash array loop
+          IFS=',' read -ra ADDR <<< "$LABELS_TO_REMOVE"
+          for label in "${ADDR[@]}"; do
+            # Trim leading/trailing whitespace
+            label=$(echo "$label" | xargs)
+            [ -z "$label" ] && continue
+
+            # Check if the PR currently has the label before attempting removal
+            if echo "$CURRENT_LABELS" | grep -Fxq "$label"; then
+              LABELS_TO_DELETE+=("$label")
+              REMOVE_FLAGS+=(--remove-label "$label")
+            else
+              echo "Label '$label' not found on PR #$PR_NUMBER, skipping."
+            fi
+          done
+
+          if [ ${#LABELS_TO_DELETE[@]} -gt 0 ]; then
+            echo "Removing labels from PR #$PR_NUMBER: ${LABELS_TO_DELETE[*]}"
+            gh pr edit "$PR_NUMBER" "${REMOVE_FLAGS[@]}"
+            echo "Successfully removed: ${LABELS_TO_DELETE[*]}"
+          else
+            echo "None of the specified labels were found on PR #$PR_NUMBER."
+          fi
