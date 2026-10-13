@@ -3,6 +3,11 @@ name: Deploy Image to App Service Slot
 on:
     workflow_call:
         inputs:
+            mode:
+                description: "Execution mode: 'deploy' or 'teardown'"
+                required: false
+                type: string
+                default: ""
             app-name:
                 description: "The base App Service name"
                 required: true
@@ -48,7 +53,7 @@ permissions:
 
 jobs:
     deploy:
-        if: github.event.action != 'closed'
+        if: inputs.mode == 'deploy' || (!inputs.mode && github.event.action != 'closed')
         runs-on: ubuntu-latest
         outputs:
             deployment_url: ${{ steps.run_deploy.outputs.deployment_url }}
@@ -117,7 +122,7 @@ jobs:
                       });
 
     cleanup:
-        if: github.event.action == 'closed'
+        if: inputs.mode == 'teardown' || (!inputs.mode && github.event.action == 'closed')
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Reusable Workflow Repo
