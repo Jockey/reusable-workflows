@@ -1,0 +1,58 @@
+name: Teardown App Service Slot Preview
+
+on:
+    workflow_call:
+        inputs:
+            app-name:
+                description: "The base App Service name"
+                required: true
+                type: string
+            app-resource-group:
+                description: "Azure Resource Group for the given `app-name`"
+                required: true
+                type: string
+            slot-name:
+                description: "Name of the App Service Slot to use"
+                required: true
+                type: string
+            custom-url-suffix:
+                description: "Append after `slot-name` to add custom DNS binding. `-fe.example.com` bind `{slot-name}-fe.example.com`"
+                required: false
+                type: string
+        secrets:
+            AZURE_SERVICE_PRINCIPAL:
+                description: Azure Service Principal Data, JSON string
+                required: true
+            CLOUDFLARE_API_TOKEN:
+                description: Cloudflare API token, with zone-level `DNS:Read, DNS:Edit, Cache Purge:Purge` permissions
+                required: true
+            CLOUDFLARE_ZONE_ID:
+                description: Cloudflare Zone ID to manage
+                required: true
+
+permissions:
+    contents: read
+
+jobs:
+    cleanup:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Reusable Workflow Repo
+              uses: actions/checkout@v6
+              with:
+                  repository: ${{ job.workflow_repository }}
+                  ref: ${{ job.workflow_sha }}
+
+            - name: Run Cleanup Script
+              env:
+                  AZURE_SERVICE_PRINCIPAL: ${{ secrets.AZURE_SERVICE_PRINCIPAL }}
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  APP_NAME: ${{ inputs.app-name }}
+                  APP_RESOURCE_GROUP: ${{ inputs.app-resource-group }}
+                  SLOT_NAME: ${{ inputs.slot-name }}
+                  CUSTOM_URL_SUFFIX: ${{ inputs.custom-url-suffix }}
+                  CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+              # We have to download the script, despite it being in this repo.
+              run: |
+                  chmod +x ./scripts/bash/az-preview-site-helper.sh
+                  ./scripts/bash/az-preview-site-helper.sh cleanup
