@@ -51,35 +51,73 @@ jobs:
       tagless_image_url: ${{ steps.build_strs.outputs.tagless_img_url }}
       tagged_image_url: ${{ steps.build_strs.outputs.tagged_img_name }}
     steps:
-      # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v6
 
-      - name: Generate Build Strings
+      - name: Generate Build Strings & Cache Config
         id: build_strs
         run: |
           lowercase_env=$(echo "${{ inputs.deploy_environment }}" | tr '[:upper:]' '[:lower:]')
           echo "lowercase_env=${lowercase_env}" >> $GITHUB_OUTPUT
 
-          tagless_image_base=$(echo "${{ inputs.docker_registry }}${{ inputs.docker_image_name }}:${lowercase_env}")
-          echo "tagless_img_url=$(echo ${tagless_image_base})" >> $GITHUB_OUTPUT
-          echo "tagged_img_name=$(echo ${tagless_image_base}-${{ inputs.build_id }})" >> $GITHUB_OUTPUT
+          # Ensure slash separation between registry and image name if needed
+          REGISTRY_URL="${{ inputs.docker_registry }}"
+          [[ "${REGISTRY_URL}" != */ ]] && REGISTRY_URL="${REGISTRY_URL}/"
 
-          # Docker tags can't contain slashes, so branch names like
-          # "feature/foo" need sanitizing before being used as a tag.
+          tagless_image_base="${REGISTRY_URL}${{ inputs.docker_image_name }}:${lowercase_env}"
+          echo "tagless_img_url=${tagless_image_base}" >> $GITHUB_OUTPUT
+          echo "tagged_img_name=${tagless_image_base}-${{ inputs.build_id }}" >> $GITHUB_OUTPUT
+
+          # 1. Current branch cache
           safe_branch=$(echo "${{ github.ref_name }}" | tr '/' '-')
-          echo "safe_branch=${safe_branch}" >> $GITHUB_OUTPUT
+          CACHE_BRANCH_REF="${tagless_image_base}-buildcache-${safe_branch}"
+          echo "cache_image_ref=${CACHE_BRANCH_REF}" >> $GITHUB_OUTPUT
 
-          # Branch-scoped cache: isolates cache between divergent branches building to the same environment
-          echo "cache_image_ref=$(echo ${tagless_image_base}-buildcache-${safe_branch})" >> $GITHUB_OUTPUT
+          # 2. Base cache-from sources
+          CACHE_FROM="type=registry,ref=${CACHE_BRANCH_REF}"
 
-          # Environment-scoped fallback cache (no branch suffix):
-          # Every build also writes here, so a brand-new branch still gets a baseline cache
-          echo "cache_image_ref_fallback=$(echo ${tagless_image_base}-buildcache)" >> $GITHUB_OUTPUT
+          # Add PR target base branch (e.g. master/main) to cache-from if building a PR
+          if [ -n "${{ github.base_ref }}" ]; then
+            safe_base=$(echo "${{ github.base_ref }}" | tr '/' '-')
+            CACHE_FROM="${CACHE_FROM}
+          type=registry,ref=${tagless_image_base}-buildcache-${safe_base}"
+          fi
+
+          # Add repository default branch fallback cache (avoids hardcoding 'develop' or 'main')
+          default_branch="${{ github.event.repository.default_branch }}"
+          if [ -n "${default_branch}" ] && [ "${default_branch}" != "${{ github.ref_name }}" ]; then
+            safe_default=$(echo "${default_branch}" | tr '/' '-')
+            CACHE_FROM="${CACHE_FROM}
+          type=registry,ref=${tagless_image_base}-buildcache-${safe_default}"
+          fi
+
+          # Generic env fallback
+          CACHE_FROM="${CACHE_FROM}
+          type=registry,ref=${tagless_image_base}-buildcache"
+
+          # Export multiline CACHE_FROM
+          {
+            echo "cache_from<<EOF"
+            echo "${CACHE_FROM}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Cache-to: Only export to this branch (mode=max so intermediate layers are cached)
+          # Only update the generic fallback cache if building on the repo default branch
+          if [ "${{ github.ref_name }}" = "${default_branch}" ]; then
+            {
+              echo "cache_to<<EOF"
+              echo "type=registry,mode=max,ref=${CACHE_BRANCH_REF}"
+              echo "type=registry,mode=max,ref=${tagless_image_base}-buildcache"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "cache_to=type=registry,mode=max,ref=${CACHE_BRANCH_REF}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Print Deploy Info
         run: |
           echo "Building ${{ steps.build_strs.outputs.tagged_img_name }}"
-          echo "Using ${{ steps.build_strs.outputs.cache_image_ref }} as Build Cache (fallback: ${{ steps.build_strs.outputs.cache_image_ref_fallback }})"
+          echo "Cache To: ${{ steps.build_strs.outputs.cache_to }}"
 
       - name: Login to Docker Registry
         uses: docker/login-action@v4
@@ -97,19 +135,9 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          # cache-from checks, in order: GitHub's own cache backend (fast,
-          # no registry round-trip), then the branch+env-scoped cache, then
-          # the env-scoped fallback cache so new branches aren't cold.
-          cache-from: |
-            type=gha
-            type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref }}
-            type=registry,ref=${{ steps.build_strs.outputs.cache_image_ref_fallback }}
-          cache-to: |
-            type=gha,mode=max
-            type=registry,mode=min,ref=${{ steps.build_strs.outputs.cache_image_ref }}
-            type=registry,mode=min,ref=${{ steps.build_strs.outputs.cache_image_ref_fallback }}
+          cache-from: ${{ steps.build_strs.outputs.cache_from }}
+          cache-to: ${{ steps.build_strs.outputs.cache_to }}
           tags: ${{ steps.build_strs.outputs.tagged_img_name }}
-          # DEPLOY_ENV may be required by the build script
           build-args: |
             DEPLOY_ENV=${{ inputs.deploy_environment }}
             BUILD_ID=${{ inputs.build_id }}

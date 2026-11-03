@@ -23,7 +23,7 @@ on:
         default: "Dockerfile"
       #
       deploy_environment:
-        description: "The Deploy Environment that should be passed to Docker during Build Phase. If not provided, it will be automagically determined based on branch name."
+        description: "The Deploy Environment that should be passed to Docker during Build Phase."
         required: false
         type: string
         default: ""
@@ -36,7 +36,11 @@ on:
         description: "The Build ID that should be passed to Docker during Build Phase."
         required: true
         type: string
-    #
+      fallback_branch:
+        description: "Optional fallback branch for cache if different from the repo default branch."
+        required: false
+        type: string
+        default: ""
     outputs:
       docker_image_name:
         description: "Fully qualified Docker Image name. Like '{registry}/{container-name}:{tag}'"
@@ -53,14 +57,13 @@ jobs:
     env:
       CONTAINER_FQN: ${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:${{ inputs.docker_container_tag }}
     steps:
-      # This checks out the repository so your workflow operates from root of repository
       - uses: actions/checkout@v6
 
       - name: Checkout helper scripts
         uses: actions/checkout@v6
         with:
           repository: Jockey/reusable-workflows
-          ref: master # Can pin to a tag or SHA for stability/reproducibility
+          ref: master
           sparse-checkout: |
             scripts/bash/extract-value-from-map.sh
           sparse-checkout-cone-mode: false
@@ -88,11 +91,37 @@ jobs:
         # thrashing by overwriting the same cache. Falls back to the
         # develop-branch cache below via an extra `cache-from` entry.
         run: |
-          # Current branch cache (for app code updates)
+          REGISTRY_IMAGE="${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}"
+          
+          # 1. Current branch cache (used for cache-to and first cache-from)
           SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
-          echo "CACHE_IMAGE_REF=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-${SAFE_BRANCH}" >> $GITHUB_ENV
-          # Immutable lockfile cache (shared across ALL PRs with the same dependencies)
-          echo "CACHE_LOCKFILE_REF=${{ inputs.docker_registry }}/${{ inputs.docker_container_name }}:buildcache-yarn-${LOCK_HASH}" >> $GITHUB_ENV
+          CACHE_IMAGE_REF="${REGISTRY_IMAGE}:buildcache-${SAFE_BRANCH}"
+          echo "CACHE_IMAGE_REF=${CACHE_IMAGE_REF}" >> $GITHUB_ENV
+
+          # Start constructing CACHE_FROM list
+          CACHE_FROM="type=registry,ref=${CACHE_IMAGE_REF}"
+
+          # 2. PR Target Base Branch (e.g. master, main, or release branch)
+          if [ -n "${{ github.base_ref }}" ]; then
+            SAFE_BASE=$(echo "${{ github.base_ref }}" | tr '/' '-')
+            CACHE_FROM="${CACHE_FROM}
+          type=registry,ref=${REGISTRY_IMAGE}:buildcache-${SAFE_BASE}"
+          fi
+
+          # 3. Fallback to Repo Default Branch (or inputs.fallback_branch if supplied)
+          DEFAULT_BRANCH="${{ inputs.fallback_branch || github.event.repository.default_branch }}"
+          if [ -n "$DEFAULT_BRANCH" ] && [ "$DEFAULT_BRANCH" != "${{ github.ref_name }}" ] && [ "$DEFAULT_BRANCH" != "${{ github.base_ref }}" ]; then
+            SAFE_DEFAULT=$(echo "${DEFAULT_BRANCH}" | tr '/' '-')
+            CACHE_FROM="${CACHE_FROM}
+          type=registry,ref=${REGISTRY_IMAGE}:buildcache-${SAFE_DEFAULT}"
+          fi
+
+          # Export multiline CACHE_FROM to GITHUB_ENV
+          {
+            echo "CACHE_FROM<<EOF"
+            echo "${CACHE_FROM}"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Login to Docker Registry
         uses: docker/login-action@v4
@@ -110,27 +139,9 @@ jobs:
           context: .
           file: ${{ inputs.docker_file_name }}
           push: true
-          # mode=max caches ALL layers (including intermediate/builder-stage
-          # layers in multi-stage Dockerfiles), not just the ones in the
-          # final image. mode=min (the old setting) skips those, so anything
-          # built in an earlier stage (deps install, compile, etc.) was
-          # re-running from scratch on every build.
-          #
-          # cache-from now checks two sources:
-          #   1. type=gha   - GitHub's own cache backend; faster than a
-          #                   registry round-trip (capped ~10GB/repo, LRU).
-          #   2. type=registry (this branch) - your existing per-branch cache.
-          #   3. type=registry (develop branch) - fallback so a brand-new
-          #                   branch/PR still gets a warm cache instead of
-          #                   starting cold.
-          cache-from: |
-            type=gha
-            type=registry,ref=${{ env.CACHE_IMAGE_REF }}
-            type=registry,ref=${{ env.CACHE_LOCKFILE_REF }}
-          cache-to: |
-            type=gha,mode=max
-            type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
-            type=registry,mode=max,ref=${{ env.CACHE_LOCKFILE_REF }}
+          cache-from: ${{ env.CACHE_FROM }}
+          # Export to a single registry tag
+          cache-to: type=registry,mode=max,ref=${{ env.CACHE_IMAGE_REF }}
           tags: ${{ env.CONTAINER_FQN }}
           build-args: |
             DEPLOY_ENV=${{ env.DEPLOY_ENV }}
