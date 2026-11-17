@@ -261,6 +261,7 @@ cmd_deploy() {
                 --slot "$SLOT_NAME" \
                 --certificate-thumbprint "$SSL_CERT_THUMBPRINT" \
                 --ssl-type SNI \
+                --hostname "$custom_hostname" \
                 --output none
 
             # ── Re-enable Cloudflare proxy now that SSL is bound ─────────────────────
